@@ -80,6 +80,10 @@ class _MapScreenState extends State<MapScreen> {
       _isLoading = false;
     });
 
+    _recenterMap();
+  }
+
+  void _recenterMap() {
     _mapController.move(_currentPosition, 15.0);
   }
 
@@ -89,6 +93,15 @@ class _MapScreenState extends State<MapScreen> {
       appBar: AppBar(
         title: const Text('Roadside Assistance'),
         backgroundColor: Colors.redAccent,
+      ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 150.0),
+        child: FloatingActionButton(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.redAccent,
+          onPressed: _recenterMap,
+          child: const Icon(Icons.my_location),
+        ),
       ),
       body: Stack(
         children: [
