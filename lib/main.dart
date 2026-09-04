@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 
 void main() {
   runApp(const RoadsideApp());
@@ -15,19 +16,67 @@ class RoadsideApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Roadside Assistance',
       theme: ThemeData(primarySwatch: Colors.red),
-      home: const HomeScreen(),
+      home: const MapScreen(),
     );
   }
 }
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class MapScreen extends StatefulWidget {
+  const MapScreen({super.key});
+
+  @override
+  State<MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends State<MapScreen> {
+  final MapController _mapController = MapController();
+  LatLng _currentPosition = const LatLng(6.9271, 79.8612); // Default fallback: Colombo
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _determinePosition();
+  }
+
+  Future<void> _determinePosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        setState(() => _isLoading = false);
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    Position position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    setState(() {
+      _currentPosition = LatLng(position.latitude, position.longitude);
+      _isLoading = false;
+    });
+
+    _mapController.move(_currentPosition, 15.0);
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Default coordinates (Colombo)
-    final LatLng userLocation = const LatLng(6.9271, 79.8612);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Roadside Assistance'),
@@ -36,8 +85,9 @@ class HomeScreen extends StatelessWidget {
       body: Stack(
         children: [
           FlutterMap(
+            mapController: _mapController,
             options: MapOptions(
-              initialCenter: userLocation,
+              initialCenter: _currentPosition,
               initialZoom: 13.0,
             ),
             children: [
@@ -48,19 +98,21 @@ class HomeScreen extends StatelessWidget {
               MarkerLayer(
                 markers: [
                   Marker(
-                    point: userLocation,
+                    point: _currentPosition,
                     width: 50,
                     height: 50,
                     child: const Icon(
-                      Icons.location_on,
-                      color: Colors.red,
-                      size: 40,
+                      Icons.my_location,
+                      color: Colors.blueAccent,
+                      size: 35,
                     ),
                   ),
                 ],
               ),
             ],
           ),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator()),
           Positioned(
             bottom: 20,
             left: 16,
@@ -76,11 +128,19 @@ class HomeScreen extends StatelessWidget {
               icon: const Icon(Icons.warning, color: Colors.white),
               label: const Text(
                 'REQUEST EMERGENCY ASSISTANCE',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Locating nearby tow trucks...')),
+                  SnackBar(
+                    content: Text(
+                      'Request sent for location: ${_currentPosition.latitude.toStringAsFixed(4)}, ${_currentPosition.longitude.toStringAsFixed(4)}',
+                    ),
+                  ),
                 );
               },
             ),
