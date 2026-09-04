@@ -34,6 +34,8 @@ class _MapScreenState extends State<MapScreen> {
   bool _isLoading = true;
   String _selectedService = 'Towing';
 
+  List<LatLng> _driverLocations = [];
+
   final List<Map<String, dynamic>> _services = [
     {'name': 'Towing', 'icon': Icons.car_repair},
     {'name': 'Flat Tire', 'icon': Icons.tire_repair},
@@ -71,20 +73,96 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
-    Position position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: WebSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 10),
+        ),
+      );
 
-    setState(() {
-      _currentPosition = LatLng(position.latitude, position.longitude);
-      _isLoading = false;
-    });
+      setState(() {
+        _currentPosition = LatLng(position.latitude, position.longitude);
+        _generateMockDrivers(position.latitude, position.longitude);
+        _isLoading = false;
+      });
 
-    _recenterMap();
+      _recenterMap();
+    } catch (e) {
+      Position? lastPosition = await Geolocator.getLastKnownPosition();
+      if (lastPosition != null) {
+        setState(() {
+          _currentPosition = LatLng(lastPosition.latitude, lastPosition.longitude);
+          _generateMockDrivers(lastPosition.latitude, lastPosition.longitude);
+          _isLoading = false;
+        });
+        _recenterMap();
+      } else {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _generateMockDrivers(double lat, double lng) {
+    _driverLocations = [
+      LatLng(lat + 0.003, lng + 0.002),
+      LatLng(lat - 0.002, lng + 0.004),
+      LatLng(lat + 0.004, lng - 0.003),
+    ];
   }
 
   void _recenterMap() {
-    _mapController.move(_currentPosition, 15.0);
+    _mapController.move(_currentPosition, 16.0);
+  }
+
+  void _showRequestConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning, color: Colors.redAccent),
+            const SizedBox(width: 8),
+            Text('Confirm $_selectedService'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Service: $_selectedService'),
+            const SizedBox(height: 6),
+            Text(
+              'Coordinates: ${_currentPosition.latitude.toStringAsFixed(4)}, ${_currentPosition.longitude.toStringAsFixed(4)}',
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Are you sure you want to dispatch emergency help to this location?',
+              style: TextStyle(color: Colors.black87),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('$_selectedService unit dispatched to your location!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: const Text('CONFIRM', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -109,7 +187,7 @@ class _MapScreenState extends State<MapScreen> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: _currentPosition,
-              initialZoom: 15.0,
+              initialZoom: 16.0,
             ),
             children: [
               TileLayer(
@@ -126,6 +204,18 @@ class _MapScreenState extends State<MapScreen> {
                       Icons.my_location,
                       color: Colors.blueAccent,
                       size: 35,
+                    ),
+                  ),
+                  ..._driverLocations.map(
+                    (loc) => Marker(
+                      point: loc,
+                      width: 40,
+                      height: 40,
+                      child: const Icon(
+                        Icons.directions_car,
+                        color: Colors.black87,
+                        size: 30,
+                      ),
                     ),
                   ),
                 ],
@@ -208,15 +298,7 @@ class _MapScreenState extends State<MapScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                '$_selectedService request sent for location: ${_currentPosition.latitude.toStringAsFixed(4)}, ${_currentPosition.longitude.toStringAsFixed(4)}',
-                              ),
-                            ),
-                          );
-                        },
+                        onPressed: _showRequestConfirmation,
                       ),
                     ),
                   ],
