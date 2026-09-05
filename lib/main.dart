@@ -38,6 +38,11 @@ class _MapScreenState extends State<MapScreen> {
   List<LatLng> _driverLocations = [];
   Timer? _driverMovementTimer;
 
+  // New tracking state variables
+  bool _isRequestActive = false;
+  int _etaMinutes = 8;
+  double _distanceKm = 2.4;
+
   final List<Map<String, dynamic>> _services = [
     {'name': 'Towing', 'icon': Icons.car_repair},
     {'name': 'Flat Tire', 'icon': Icons.tire_repair},
@@ -134,8 +139,39 @@ class _MapScreenState extends State<MapScreen> {
           double newLng = driverPos.longitude + (_currentPosition.longitude - driverPos.longitude) * 0.02;
           return LatLng(newLat, newLng);
         }).toList();
+
+        // Calculate live distance to nearest driver
+        if (_driverLocations.isNotEmpty) {
+          double distanceInMeters = Geolocator.distanceBetween(
+            _currentPosition.latitude,
+            _currentPosition.longitude,
+            _driverLocations[0].latitude,
+            _driverLocations[0].longitude,
+          );
+          _distanceKm = distanceInMeters / 1000;
+          _etaMinutes = (_distanceKm * 3).ceil(); // Simple ETA scale
+
+          if (_distanceKm < 0.05) {
+            _etaMinutes = 0;
+            _driverMovementTimer?.cancel();
+          }
+        }
       });
     });
+  }
+
+  void _cancelRequest() {
+    _driverMovementTimer?.cancel();
+    setState(() {
+      _isRequestActive = false;
+      _generateMockDrivers(_currentPosition.latitude, _currentPosition.longitude);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Assistance request cancelled.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
   }
 
   void _showRequestConfirmation() {
@@ -174,13 +210,10 @@ class _MapScreenState extends State<MapScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () {
               Navigator.pop(context);
+              setState(() {
+                _isRequestActive = true;
+              });
               _startDriverMovement();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('$_selectedService unit dispatched to your location!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
             },
             child: const Text('CONFIRM', style: TextStyle(color: Colors.white)),
           ),
@@ -248,6 +281,67 @@ class _MapScreenState extends State<MapScreen> {
           ),
           if (_isLoading)
             const Center(child: CircularProgressIndicator()),
+
+          // Live ETA Top Bar (Only visible when request is active)
+          if (_isRequestActive)
+            Positioned(
+              top: 16,
+              left: 16,
+              right: 16,
+              child: Card(
+                color: Colors.black87,
+                elevation: 6,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      const CircularProgressIndicator(
+                        color: Colors.redAccent,
+                        strokeWidth: 3,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _etaMinutes > 0
+                                  ? 'Driver En Route ($_selectedService)'
+                                  : 'Driver Arrived!',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _etaMinutes > 0
+                                  ? 'ETA: ~$_etaMinutes min (${_distanceKm.toStringAsFixed(1)} km away)'
+                                  : 'Your assistance unit has reached your location.',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white70),
+                        onPressed: _cancelRequest,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Bottom Selection Card
           Positioned(
             bottom: 20,
             left: 16,
@@ -290,13 +384,15 @@ class _MapScreenState extends State<MapScreen> {
                               labelStyle: TextStyle(
                                 color: isSelected ? Colors.white : Colors.black,
                               ),
-                              onSelected: (selected) {
-                                if (selected) {
-                                  setState(() {
-                                    _selectedService = service['name'];
-                                  });
-                                }
-                              },
+                              onSelected: _isRequestActive
+                                  ? null // Disable changing service while active
+                                  : (selected) {
+                                      if (selected) {
+                                        setState(() {
+                                          _selectedService = service['name'];
+                                        });
+                                      }
+                                    },
                             ),
                           );
                         }).toList(),
@@ -307,22 +403,31 @@ class _MapScreenState extends State<MapScreen> {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent,
+                          backgroundColor: _isRequestActive
+                              ? Colors.grey
+                              : Colors.redAccent,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        icon: const Icon(Icons.warning, color: Colors.white),
+                        icon: Icon(
+                          _isRequestActive ? Icons.check : Icons.warning,
+                          color: Colors.white,
+                        ),
                         label: Text(
-                          'REQUEST ${_selectedService.toUpperCase()}',
+                          _isRequestActive
+                              ? 'DISPATCH IN PROGRESS'
+                              : 'REQUEST ${_selectedService.toUpperCase()}',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        onPressed: _showRequestConfirmation,
+                        onPressed: _isRequestActive
+                            ? null
+                            : _showRequestConfirmation,
                       ),
                     ),
                   ],
