@@ -346,6 +346,16 @@ class _MapScreenState extends State<MapScreen> {
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.roadside_app',
               ),
+              if (_isRequestActive && _driverLocations.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: [_currentPosition, _driverLocations[0]],
+                      strokeWidth: 4.0,
+                      color: Colors.redAccent,
+                    ),
+                  ],
+                ),
               MarkerLayer(
                 markers: [
                   Marker(
