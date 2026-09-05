@@ -152,10 +152,80 @@ class _MapScreenState extends State<MapScreen> {
           if (_distanceKm < 0.05) {
             _etaMinutes = 0;
             _driverMovementTimer?.cancel();
+            _showRatingDialog();
           }
         }
       });
     });
+  }
+
+  void _showRatingDialog() {
+    int selectedStars = 5;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Column(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green, size: 48),
+              SizedBox(height: 8),
+              Text('Driver Has Arrived!', textAlign: TextAlign.center),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'How was your assistance experience?',
+                style: TextStyle(color: Colors.black87),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (index) {
+                  return IconButton(
+                    icon: Icon(
+                      index < selectedStars ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 32,
+                    ),
+                    onPressed: () {
+                      setDialogState(() {
+                        selectedStars = index + 1;
+                      });
+                    },
+                  );
+                }),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                minimumSize: const Size.fromHeight(42),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() {
+                  _isRequestActive = false;
+                  _generateMockDrivers(_currentPosition.latitude, _currentPosition.longitude);
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Thank you for rating $selectedStars stars!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              },
+              child: const Text('SUBMIT FEEDBACK', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _cancelRequest() {
