@@ -38,7 +38,6 @@ class _MapScreenState extends State<MapScreen> {
   List<LatLng> _driverLocations = [];
   Timer? _driverMovementTimer;
 
-  // New tracking state variables
   bool _isRequestActive = false;
   int _etaMinutes = 8;
   double _distanceKm = 2.4;
@@ -140,7 +139,6 @@ class _MapScreenState extends State<MapScreen> {
           return LatLng(newLat, newLng);
         }).toList();
 
-        // Calculate live distance to nearest driver
         if (_driverLocations.isNotEmpty) {
           double distanceInMeters = Geolocator.distanceBetween(
             _currentPosition.latitude,
@@ -149,7 +147,7 @@ class _MapScreenState extends State<MapScreen> {
             _driverLocations[0].longitude,
           );
           _distanceKm = distanceInMeters / 1000;
-          _etaMinutes = (_distanceKm * 3).ceil(); // Simple ETA scale
+          _etaMinutes = (_distanceKm * 3).ceil();
 
           if (_distanceKm < 0.05) {
             _etaMinutes = 0;
@@ -171,6 +169,103 @@ class _MapScreenState extends State<MapScreen> {
         content: Text('Assistance request cancelled.'),
         backgroundColor: Colors.orange,
       ),
+    );
+  }
+
+  void _showDriverProfile(int driverIndex) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.redAccent,
+                  child: Icon(Icons.person, color: Colors.white, size: 30),
+                ),
+                title: Text(
+                  'Assigned Driver #${driverIndex + 1}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                subtitle: const Row(
+                  children: [
+                    Icon(Icons.star, color: Colors.amber, size: 18),
+                    SizedBox(width: 4),
+                    Text('4.9 (120 reviews)'),
+                  ],
+                ),
+              ),
+              const Divider(),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  Column(
+                    children: [
+                      Text('Vehicle', style: TextStyle(color: Colors.grey)),
+                      SizedBox(height: 4),
+                      Text('Tow Truck', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      Text('License Plate', style: TextStyle(color: Colors.grey)),
+                      SizedBox(height: 4),
+                      Text('WP CAB-4821', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  icon: const Icon(Icons.phone, color: Colors.white),
+                  label: const Text(
+                    'CALL DRIVER',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Calling driver... (+94 77 123 4567)'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -263,18 +358,20 @@ class _MapScreenState extends State<MapScreen> {
                       size: 35,
                     ),
                   ),
-                  ..._driverLocations.map(
-                    (loc) => Marker(
-                      point: loc,
+                  for (int i = 0; i < _driverLocations.length; i++)
+                    Marker(
+                      point: _driverLocations[i],
                       width: 40,
                       height: 40,
-                      child: const Icon(
-                        Icons.directions_car,
-                        color: Colors.black87,
-                        size: 30,
+                      child: GestureDetector(
+                        onTap: () => _showDriverProfile(i),
+                        child: const Icon(
+                          Icons.directions_car,
+                          color: Colors.black87,
+                          size: 30,
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ],
@@ -282,7 +379,6 @@ class _MapScreenState extends State<MapScreen> {
           if (_isLoading)
             const Center(child: CircularProgressIndicator()),
 
-          // Live ETA Top Bar (Only visible when request is active)
           if (_isRequestActive)
             Positioned(
               top: 16,
@@ -341,7 +437,6 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
 
-          // Bottom Selection Card
           Positioned(
             bottom: 20,
             left: 16,
@@ -385,7 +480,7 @@ class _MapScreenState extends State<MapScreen> {
                                 color: isSelected ? Colors.white : Colors.black,
                               ),
                               onSelected: _isRequestActive
-                                  ? null // Disable changing service while active
+                                  ? null
                                   : (selected) {
                                       if (selected) {
                                         setState(() {
