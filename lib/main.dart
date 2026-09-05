@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -35,6 +36,7 @@ class _MapScreenState extends State<MapScreen> {
   String _selectedService = 'Towing';
 
   List<LatLng> _driverLocations = [];
+  Timer? _driverMovementTimer;
 
   final List<Map<String, dynamic>> _services = [
     {'name': 'Towing', 'icon': Icons.car_repair},
@@ -47,6 +49,12 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _determinePosition();
+  }
+
+  @override
+  void dispose() {
+    _driverMovementTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _determinePosition() async {
@@ -115,6 +123,21 @@ class _MapScreenState extends State<MapScreen> {
     _mapController.move(_currentPosition, 16.0);
   }
 
+  void _startDriverMovement() {
+    _driverMovementTimer?.cancel();
+    _driverMovementTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+
+      setState(() {
+        _driverLocations = _driverLocations.map((driverPos) {
+          double newLat = driverPos.latitude + (_currentPosition.latitude - driverPos.latitude) * 0.02;
+          double newLng = driverPos.longitude + (_currentPosition.longitude - driverPos.longitude) * 0.02;
+          return LatLng(newLat, newLng);
+        }).toList();
+      });
+    });
+  }
+
   void _showRequestConfirmation() {
     showDialog(
       context: context,
@@ -151,6 +174,7 @@ class _MapScreenState extends State<MapScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () {
               Navigator.pop(context);
+              _startDriverMovement();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('$_selectedService unit dispatched to your location!'),
