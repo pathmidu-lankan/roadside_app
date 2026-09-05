@@ -203,9 +203,12 @@ class _MapScreenState extends State<MapScreen> {
                 ),
                 subtitle: const Row(
                   children: [
-                    Icon(Icons.star, color: Colors.amber, size: 18),
+                    Icon(Icons.star, color: Colors.amber, size: 20),
                     SizedBox(width: 4),
-                    Text('4.9 (120 reviews)'),
+                    Text(
+                      '4.9 (120 reviews)',
+                      style: TextStyle(color: Colors.black87),
+                    ),
                   ],
                 ),
               ),
